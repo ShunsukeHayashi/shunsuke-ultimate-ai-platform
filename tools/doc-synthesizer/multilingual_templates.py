@@ -178,11 +178,6 @@ pip install -r requirements.txt
 
 プロジェクトへの貢献を歓迎します！詳細については [CONTRIBUTING.md](CONTRIBUTING.md) をご覧ください。
 
-## 📞 サポート
-
-- GitHub Issues: [問題の報告]({issues_url})
-- Email: {contact_email}
-- Discord: {discord_url}
 
 ---
 

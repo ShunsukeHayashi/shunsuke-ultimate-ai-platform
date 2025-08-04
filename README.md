@@ -376,19 +376,6 @@ MIT License - 詳細は [LICENSE](LICENSE) を参照
 - **GitHub**: Actions および Copilot との統合機会
 - **コミュニティ**: フィードバックとコントリビューション
 
-## 📞 サポート
-
-### 問い合わせ
-
-- **GitHub Issues**: バグ報告・機能要求
-- **Discussions**: 質問・アイデア共有
-- **Email**: support@shunsuke-ecosystem.dev
-
-### コミュニティ
-
-- **Discord**: [ShunsukeModel Community](https://discord.gg/shunsuke)
-- **Twitter**: [@ShunsukeEcosystem](https://twitter.com/ShunsukeEcosystem)
-- **Blog**: [tech.shunsuke-ecosystem.dev](https://tech.shunsuke-ecosystem.dev)
 
 ---
 

@@ -1,0 +1,309 @@
+version: '3.8'
+
+services:
+  # Command Tower - 中央制御システム
+  command-tower:
+    build:
+      context: ../core/command-tower
+      dockerfile: Dockerfile
+    container_name: shunsuke-command-tower
+    environment:
+      - NODE_ENV=production
+      - LOG_LEVEL=info
+      - REDIS_URL=redis://redis:6379
+      - POSTGRES_URL=postgresql://postgres:postgres@postgres:5432/shunsuke_db
+    ports:
+      - "8080:8080"
+    depends_on:
+      - redis
+      - postgres
+    volumes:
+      - command-tower-data:/app/data
+      - ../logs/command-tower:/app/logs
+    restart: unless-stopped
+    networks:
+      - shunsuke-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Agent Coordinator - エージェント調整システム
+  agent-coordinator:
+    build:
+      context: ../orchestration
+      dockerfile: Dockerfile
+    container_name: shunsuke-agent-coordinator
+    environment:
+      - PYTHON_ENV=production
+      - REDIS_URL=redis://redis:6379
+      - COMMAND_TOWER_URL=http://command-tower:8080
+      - MAX_AGENTS=50
+    ports:
+      - "8081:8081"
+    depends_on:
+      - redis
+      - command-tower
+    volumes:
+      - agent-data:/app/data
+      - ../logs/agent-coordinator:/app/logs
+    restart: unless-stopped
+    networks:
+      - shunsuke-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8081/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Quality Guardian - 品質監視システム
+  quality-guardian:
+    build:
+      context: ../tools/quality-analyzer
+      dockerfile: Dockerfile
+    container_name: shunsuke-quality-guardian
+    environment:
+      - PYTHON_ENV=production
+      - REDIS_URL=redis://redis:6379
+      - POSTGRES_URL=postgresql://postgres:postgres@postgres:5432/shunsuke_db
+      - ANALYSIS_WORKERS=4
+    ports:
+      - "8082:8082"
+    depends_on:
+      - redis
+      - postgres
+    volumes:
+      - quality-data:/app/data
+      - ../logs/quality-guardian:/app/logs
+      - /var/run/docker.sock:/var/run/docker.sock:ro  # Dockerソケット（コンテナ分析用）
+    restart: unless-stopped
+    networks:
+      - shunsuke-network
+
+  # Documentation Synthesizer - ドキュメント生成システム
+  doc-synthesizer:
+    build:
+      context: ../tools/doc-synthesizer
+      dockerfile: Dockerfile
+    container_name: shunsuke-doc-synthesizer
+    environment:
+      - PYTHON_ENV=production
+      - REDIS_URL=redis://redis:6379
+      - SUPPORTED_LANGUAGES=ja,en,zh,ko
+      - OUTPUT_PATH=/app/generated-docs
+    ports:
+      - "8083:8083"
+    depends_on:
+      - redis
+    volumes:
+      - doc-data:/app/generated-docs
+      - ../logs/doc-synthesizer:/app/logs
+    restart: unless-stopped
+    networks:
+      - shunsuke-network
+
+  # Performance Monitor - パフォーマンス監視
+  performance-monitor:
+    build:
+      context: ../tools/performance-suite
+      dockerfile: Dockerfile
+    container_name: shunsuke-performance-monitor
+    environment:
+      - PYTHON_ENV=production
+      - REDIS_URL=redis://redis:6379
+      - PROMETHEUS_URL=http://prometheus:9090
+      - ALERT_WEBHOOK_URL=${ALERT_WEBHOOK_URL}
+    ports:
+      - "8084:8084"
+    depends_on:
+      - redis
+      - prometheus
+    volumes:
+      - performance-data:/app/data
+      - ../logs/performance-monitor:/app/logs
+    restart: unless-stopped
+    networks:
+      - shunsuke-network
+
+  # Redis - キャッシュ・メッセージブローカー
+  redis:
+    image: redis:7-alpine
+    container_name: shunsuke-redis
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-shunsuke2024}
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    networks:
+      - shunsuke-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PostgreSQL - メインデータベース
+  postgres:
+    image: postgres:15-alpine
+    container_name: shunsuke-postgres
+    environment:
+      - POSTGRES_DB=shunsuke_db
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-shunsuke2024}
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    networks:
+      - shunsuke-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Prometheus - メトリクス収集
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: shunsuke-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+    networks:
+      - shunsuke-network
+
+  # Grafana - 可視化ダッシュボード
+  grafana:
+    image: grafana/grafana:latest
+    container_name: shunsuke-grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-shunsuke2024}
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    networks:
+      - shunsuke-network
+
+  # Nginx - リバースプロキシ
+  nginx:
+    image: nginx:alpine
+    container_name: shunsuke-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./nginx/ssl:/etc/nginx/ssl
+      - nginx-cache:/var/cache/nginx
+    depends_on:
+      - command-tower
+      - agent-coordinator
+      - quality-guardian
+      - doc-synthesizer
+    restart: unless-stopped
+    networks:
+      - shunsuke-network
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Elasticsearch - ログ保存・検索
+  elasticsearch:
+    image: elasticsearch:8.11.0
+    container_name: shunsuke-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+    restart: unless-stopped
+    networks:
+      - shunsuke-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200/_cluster/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Kibana - ログ可視化
+  kibana:
+    image: kibana:8.11.0
+    container_name: shunsuke-kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+    restart: unless-stopped
+    networks:
+      - shunsuke-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5601/api/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Logstash - ログ収集・処理
+  logstash:
+    image: logstash:8.11.0
+    container_name: shunsuke-logstash
+    volumes:
+      - ./logstash/pipeline:/usr/share/logstash/pipeline
+      - ./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml
+      - ../logs:/logs:ro
+    environment:
+      - "LS_JAVA_OPTS=-Xmx512m -Xms512m"
+    depends_on:
+      - elasticsearch
+    restart: unless-stopped
+    networks:
+      - shunsuke-network
+
+networks:
+  shunsuke-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+volumes:
+  command-tower-data:
+  agent-data:
+  quality-data:
+  doc-data:
+  performance-data:
+  redis-data:
+  postgres-data:
+  prometheus-data:
+  grafana-data:
+  elasticsearch-data:
+  nginx-cache:

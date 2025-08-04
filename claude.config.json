@@ -1,0 +1,141 @@
+{
+  "version": "1.0.0",
+  "description": "Claude Code configuration for Ultimate ShunsukeModel Ecosystem",
+  "workspace": {
+    "type": "monorepo",
+    "packageManager": "npm",
+    "structure": {
+      "apps": "User-facing applications",
+      "services": "Core microservices",
+      "packages": "Shared libraries and utilities",
+      "tools": "Development and operational tools",
+      "claude-integrations": "Claude-specific integrations and MCP servers"
+    }
+  },
+  "claudeCode": {
+    "globalSettings": {
+      "hooks": {
+        "PreToolUse": [
+          {
+            "matcher": "Bash",
+            "hooks": [
+              {
+                "type": "command",
+                "command": "echo \"[SHUNSUKE PLATFORM] Executing: $TOOL_INPUT\" >> ~/.shunsuke/claude-execution.log"
+              }
+            ]
+          },
+          {
+            "matcher": "Write|Edit",
+            "hooks": [
+              {
+                "type": "command",
+                "command": "node scripts/validate-code-quality.js $FILE_PATH"
+              }
+            ]
+          }
+        ],
+        "PostToolUse": [
+          {
+            "matcher": "Write|Edit",
+            "hooks": [
+              {
+                "type": "command",
+                "command": "npm run format --workspace=$WORKSPACE_NAME"
+              }
+            ]
+          }
+        ],
+        "Stop": [
+          {
+            "hooks": [
+              {
+                "type": "command",
+                "command": "node scripts/generate-session-report.js"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "slashCommands": {
+      "/shunsuke-analyze": {
+        "description": "Analyze code quality across all workspaces",
+        "command": "npm run claude:analyze"
+      },
+      "/shunsuke-deploy": {
+        "description": "Deploy services to specified environment",
+        "command": "npm run deploy -- $ARGUMENTS"
+      },
+      "/shunsuke-monitor": {
+        "description": "Check system health and metrics",
+        "command": "npm run monitor:health"
+      }
+    }
+  },
+  "mcpServers": {
+    "yaml-context-engineering": {
+      "path": "./claude-integrations/yaml-context-mcp",
+      "config": {
+        "outputDirectory": "./generated-contexts",
+        "maxCrawlDepth": 3
+      }
+    },
+    "shunsuke-scout": {
+      "path": "./claude-integrations/shunsuke-scout-mcp",
+      "config": {
+        "targetPatterns": ["*.ts", "*.tsx", "*.js", "*.jsx"],
+        "analysisDepth": "deep"
+      }
+    },
+    "quality-guardian": {
+      "path": "./claude-integrations/quality-guardian-mcp",
+      "config": {
+        "thresholds": {
+          "completeness": 0.8,
+          "consistency": 0.85,
+          "accuracy": 0.9,
+          "usability": 0.8
+        }
+      }
+    }
+  },
+  "agents": {
+    "command-tower": {
+      "description": "Central orchestration agent",
+      "systemPrompt": "You are the Command Tower agent, responsible for orchestrating all operations in the Shunsuke Platform.",
+      "tools": ["WebSearch", "Read", "Write", "Bash", "Task"]
+    },
+    "quality-analyst": {
+      "description": "Code quality analysis specialist",
+      "systemPrompt": "You are a quality analysis specialist focused on maintaining high code standards across the monorepo.",
+      "tools": ["Read", "Grep", "Task"]
+    },
+    "performance-optimizer": {
+      "description": "Performance optimization specialist",
+      "systemPrompt": "You are a performance optimization expert, focused on improving system efficiency.",
+      "tools": ["Read", "Write", "Bash", "Task"]
+    }
+  },
+  "workflows": {
+    "codeReview": {
+      "trigger": "pr_opened",
+      "steps": [
+        "quality-analysis",
+        "security-scan",
+        "performance-check",
+        "generate-report"
+      ]
+    },
+    "deployment": {
+      "trigger": "manual",
+      "steps": [
+        "build-validation",
+        "test-execution",
+        "deploy-staging",
+        "smoke-tests",
+        "deploy-production"
+      ]
+    }
+  }
+}

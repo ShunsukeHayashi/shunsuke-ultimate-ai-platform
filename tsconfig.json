@@ -1,0 +1,72 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "lib": ["ES2022"],
+    "allowJs": true,
+    "checkJs": false,
+    "jsx": "preserve",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "./dist",
+    "rootDir": "./",
+    "composite": true,
+    "removeComments": true,
+    "noEmit": true,
+    "importHelpers": true,
+    "downlevelIteration": true,
+    "isolatedModules": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "moduleResolution": "node",
+    "baseUrl": ".",
+    "paths": {
+      "@shunsuke/*": ["packages/*/src", "apps/*/src", "services/*/src", "tools/*/src"]
+    },
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "incremental": true
+  },
+  "include": [
+    "packages/**/*",
+    "apps/**/*",
+    "services/**/*",
+    "tools/**/*",
+    "claude-integrations/**/*",
+    "scripts/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "**/node_modules",
+    "dist",
+    "**/dist",
+    "build",
+    "**/build",
+    ".next",
+    "**/.next",
+    "coverage",
+    "**/coverage",
+    "**/*.spec.ts",
+    "**/*.test.ts"
+  ],
+  "references": [
+    { "path": "./packages/core" },
+    { "path": "./packages/eslint-config" },
+    { "path": "./packages/typescript-config" },
+    { "path": "./apps/command-center" },
+    { "path": "./services/command-tower" },
+    { "path": "./claude-integrations/yaml-context-mcp" },
+    { "path": "./claude-integrations/shunsuke-scout-mcp" },
+    { "path": "./claude-integrations/quality-guardian-mcp" }
+  ]
+}

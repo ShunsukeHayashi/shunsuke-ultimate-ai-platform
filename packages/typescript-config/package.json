@@ -1,0 +1,15 @@
+{
+  "name": "@shunsuke/typescript-config",
+  "version": "1.0.0",
+  "description": "Shared TypeScript configuration for Shunsuke Platform",
+  "private": true,
+  "files": [
+    "base.json",
+    "nextjs.json",
+    "node.json",
+    "react-library.json"
+  ],
+  "publishConfig": {
+    "access": "restricted"
+  }
+}

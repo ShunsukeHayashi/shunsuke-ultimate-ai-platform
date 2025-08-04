@@ -1,0 +1,70 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "mkdir -p ~/.shunsuke && echo \"$(date '+%Y-%m-%d %H:%M:%S') [SHUNSUKE] Executing: $TOOL_INPUT\" >> ~/.shunsuke/claude-execution.log"
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "test -f scripts/validate-code-quality.js && node scripts/validate-code-quality.js \"$FILE_PATH\" || echo 'Validator not found, skipping...'"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [[ \"$FILE_PATH\" == *.ts || \"$FILE_PATH\" == *.tsx || \"$FILE_PATH\" == *.js || \"$FILE_PATH\" == *.jsx ]]; then prettier --write \"$FILE_PATH\" 2>/dev/null || true; fi"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "test -f scripts/generate-session-report.js && node scripts/generate-session-report.js || echo 'Session completed.'"
+          }
+        ]
+      }
+    ]
+  },
+  "mcpServers": {
+    "yaml-context-engineering": {
+      "command": "node",
+      "args": ["/Users/shunsuke/Dev/Dev_Claude/shunsuke-ultimate-ai-platform/claude-integrations/yaml-context-mcp/dist/index.js"],
+      "env": {
+        "OUTPUT_DIRECTORY": "./generated-contexts",
+        "MAX_CRAWL_DEPTH": "3"
+      }
+    },
+    "shunsuke-scout": {
+      "command": "node",
+      "args": ["/Users/shunsuke/Dev/Dev_Claude/shunsuke-ultimate-ai-platform/claude-integrations/shunsuke-scout-mcp/dist/index.js"],
+      "env": {
+        "TARGET_PATTERNS": "*.ts,*.tsx,*.js,*.jsx",
+        "ANALYSIS_DEPTH": "deep"
+      }
+    },
+    "quality-guardian": {
+      "command": "node",
+      "args": ["/Users/shunsuke/Dev/Dev_Claude/shunsuke-ultimate-ai-platform/claude-integrations/quality-guardian-mcp/dist/index.js"],
+      "env": {
+        "QUALITY_THRESHOLDS": "{\"completeness\":0.8,\"consistency\":0.85,\"accuracy\":0.9,\"usability\":0.8}"
+      }
+    }
+  }
+}

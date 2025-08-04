@@ -1,0 +1,45 @@
+{
+  "name": "@shunsuke/ultimate-ai-platform",
+  "version": "1.0.0",
+  "description": "Ultimate ShunsukeModel Ecosystem - 統合型AI開発プラットフォーム with Claude Code Integration",
+  "author": "Shunsuke Team",
+  "license": "MIT",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*",
+    "services/*",
+    "tools/*",
+    "claude-integrations/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "format": "turbo run format",
+    "clean": "turbo run clean",
+    "typecheck": "turbo run typecheck",
+    "claude:setup": "node scripts/setup-claude-integration.js",
+    "claude:sync": "node scripts/sync-claude-config.js",
+    "monorepo:health": "node scripts/monorepo-health-check.js",
+    "changeset": "changeset",
+    "version": "changeset version",
+    "release": "turbo run build && changeset publish"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.27.1",
+    "@shunsuke/eslint-config": "workspace:*",
+    "@shunsuke/typescript-config": "workspace:*",
+    "@types/node": "^20.10.0",
+    "eslint": "^8.56.0",
+    "prettier": "^3.2.0",
+    "turbo": "^1.11.3",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "packageManager": "npm@9.8.1"
+}

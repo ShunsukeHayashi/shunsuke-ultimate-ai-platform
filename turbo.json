@@ -1,0 +1,49 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "pipeline": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", ".next/**", "build/**"],
+      "env": ["NODE_ENV", "CLAUDE_API_KEY", "CLAUDE_MODEL"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "test": {
+      "dependsOn": ["build"],
+      "inputs": ["src/**/*.tsx", "src/**/*.ts", "test/**/*.ts", "test/**/*.tsx"],
+      "outputs": ["coverage/**"],
+      "cache": false
+    },
+    "lint": {
+      "outputs": []
+    },
+    "format": {
+      "outputs": []
+    },
+    "typecheck": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "clean": {
+      "cache": false
+    },
+    "claude:sync": {
+      "cache": false,
+      "inputs": [".claude/**", "claude.config.json"]
+    }
+  },
+  "globalEnv": [
+    "NODE_ENV",
+    "CLAUDE_API_KEY",
+    "CLAUDE_MODEL",
+    "CLAUDE_CODE_PATH"
+  ],
+  "globalDependencies": [
+    "package.json",
+    "tsconfig.json",
+    ".env",
+    ".env.local"
+  ]
+}

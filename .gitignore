@@ -160,14 +160,87 @@ temp/
 logs/
 *.tmp
 
-# Claude Code specific
-.claude/
+# Monorepo specific
+.turbo/
+.changeset/*.md
+.claude-sync-report.json
+reports/
+packages/*/lib
+packages/*/tsconfig.tsbuildinfo
+apps/*/tsconfig.tsbuildinfo
+services/*/tsconfig.tsbuildinfo
+tools/*/tsconfig.tsbuildinfo
+claude-integrations/*/tsconfig.tsbuildinfo
+
+# Next.js
+.next/
+**/.next/
+out/
+**/out/
+
+# Build outputs
+**/dist/
+**/build/
+
+# Test coverage
+coverage/
+**/coverage/
+.nyc_output
+
+# Cache
+.cache/
+.eslintcache
+.prettiercache
+
+# Environment files
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Package manager files
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+yarn.lock
+pnpm-lock.yaml
+
+# Claude Code specific (keep local .claude/)
 generated_contexts/
 test_output/
 
 # MCP specific
 *.mcp
 .mcp_cache/
+
+# Generated files
+generated-contexts/
+generated-docs/
+
+# Performance data
+performance-data/
+benchmarks/results/
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+*.tfplan
+
+# Docker
+.dockerignore
+
+# Monitoring
+prometheus-data/
+grafana-data/
+elasticsearch-data/
+
+# Security
+*.pem
+*.key
+*.cert
 
 # Local configuration
 local_config.yaml

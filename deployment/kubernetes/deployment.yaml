@@ -1,0 +1,549 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: shunsuke-platform
+  labels:
+    name: shunsuke-platform
+    environment: production
+
+---
+# Command Tower Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: command-tower
+  namespace: shunsuke-platform
+  labels:
+    app: command-tower
+    component: core
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: command-tower
+  template:
+    metadata:
+      labels:
+        app: command-tower
+        version: v1
+    spec:
+      containers:
+      - name: command-tower
+        image: shunsuke-platform/command-tower:latest
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: LOG_LEVEL
+          value: "info"
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: redis-secret
+              key: url
+        - name: POSTGRES_URL
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: url
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        volumeMounts:
+        - name: config
+          mountPath: /app/config
+          readOnly: true
+        - name: logs
+          mountPath: /app/logs
+      volumes:
+      - name: config
+        configMap:
+          name: command-tower-config
+      - name: logs
+        persistentVolumeClaim:
+          claimName: command-tower-logs-pvc
+
+---
+# Command Tower Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: command-tower-service
+  namespace: shunsuke-platform
+  labels:
+    app: command-tower
+spec:
+  type: ClusterIP
+  selector:
+    app: command-tower
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: http
+
+---
+# Agent Coordinator Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-coordinator
+  namespace: shunsuke-platform
+  labels:
+    app: agent-coordinator
+    component: orchestration
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: agent-coordinator
+  template:
+    metadata:
+      labels:
+        app: agent-coordinator
+        version: v1
+    spec:
+      containers:
+      - name: agent-coordinator
+        image: shunsuke-platform/agent-coordinator:latest
+        ports:
+        - containerPort: 8081
+          name: http
+        env:
+        - name: PYTHON_ENV
+          value: "production"
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: redis-secret
+              key: url
+        - name: COMMAND_TOWER_URL
+          value: "http://command-tower-service:8080"
+        - name: MAX_AGENTS
+          value: "50"
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "1000m"
+          limits:
+            memory: "2Gi"
+            cpu: "2000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8081
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8081
+          initialDelaySeconds: 10
+          periodSeconds: 5
+
+---
+# Agent Coordinator Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-coordinator-service
+  namespace: shunsuke-platform
+  labels:
+    app: agent-coordinator
+spec:
+  type: ClusterIP
+  selector:
+    app: agent-coordinator
+  ports:
+  - port: 8081
+    targetPort: 8081
+    protocol: TCP
+    name: http
+
+---
+# Quality Guardian StatefulSet
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: quality-guardian
+  namespace: shunsuke-platform
+  labels:
+    app: quality-guardian
+    component: quality
+spec:
+  serviceName: quality-guardian-service
+  replicas: 2
+  selector:
+    matchLabels:
+      app: quality-guardian
+  template:
+    metadata:
+      labels:
+        app: quality-guardian
+        version: v1
+    spec:
+      containers:
+      - name: quality-guardian
+        image: shunsuke-platform/quality-guardian:latest
+        ports:
+        - containerPort: 8082
+          name: http
+        env:
+        - name: PYTHON_ENV
+          value: "production"
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: redis-secret
+              key: url
+        - name: POSTGRES_URL
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: url
+        - name: ANALYSIS_WORKERS
+          value: "4"
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "2000m"
+          limits:
+            memory: "4Gi"
+            cpu: "4000m"
+        volumeMounts:
+        - name: quality-data
+          mountPath: /app/data
+  volumeClaimTemplates:
+  - metadata:
+      name: quality-data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: "fast-ssd"
+      resources:
+        requests:
+          storage: 50Gi
+
+---
+# Quality Guardian Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: quality-guardian-service
+  namespace: shunsuke-platform
+  labels:
+    app: quality-guardian
+spec:
+  type: ClusterIP
+  clusterIP: None  # Headless service for StatefulSet
+  selector:
+    app: quality-guardian
+  ports:
+  - port: 8082
+    targetPort: 8082
+    protocol: TCP
+    name: http
+
+---
+# Documentation Synthesizer Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: doc-synthesizer
+  namespace: shunsuke-platform
+  labels:
+    app: doc-synthesizer
+    component: documentation
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: doc-synthesizer
+  template:
+    metadata:
+      labels:
+        app: doc-synthesizer
+        version: v1
+    spec:
+      containers:
+      - name: doc-synthesizer
+        image: shunsuke-platform/doc-synthesizer:latest
+        ports:
+        - containerPort: 8083
+          name: http
+        env:
+        - name: PYTHON_ENV
+          value: "production"
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: redis-secret
+              key: url
+        - name: SUPPORTED_LANGUAGES
+          value: "ja,en,zh,ko"
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "1000m"
+          limits:
+            memory: "2Gi"
+            cpu: "2000m"
+        volumeMounts:
+        - name: doc-output
+          mountPath: /app/generated-docs
+      volumes:
+      - name: doc-output
+        persistentVolumeClaim:
+          claimName: doc-output-pvc
+
+---
+# Documentation Synthesizer Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: doc-synthesizer-service
+  namespace: shunsuke-platform
+  labels:
+    app: doc-synthesizer
+spec:
+  type: ClusterIP
+  selector:
+    app: doc-synthesizer
+  ports:
+  - port: 8083
+    targetPort: 8083
+    protocol: TCP
+    name: http
+
+---
+# Performance Monitor DaemonSet
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: performance-monitor
+  namespace: shunsuke-platform
+  labels:
+    app: performance-monitor
+    component: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: performance-monitor
+  template:
+    metadata:
+      labels:
+        app: performance-monitor
+        version: v1
+    spec:
+      containers:
+      - name: performance-monitor
+        image: shunsuke-platform/performance-monitor:latest
+        ports:
+        - containerPort: 8084
+          name: http
+        env:
+        - name: PYTHON_ENV
+          value: "production"
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: redis-secret
+              key: url
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        volumeMounts:
+        - name: host-sys
+          mountPath: /host/sys
+          readOnly: true
+        - name: host-proc
+          mountPath: /host/proc
+          readOnly: true
+      volumes:
+      - name: host-sys
+        hostPath:
+          path: /sys
+      - name: host-proc
+        hostPath:
+          path: /proc
+      hostNetwork: true
+      hostPID: true
+
+---
+# Ingress Configuration
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: shunsuke-platform-ingress
+  namespace: shunsuke-platform
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+spec:
+  tls:
+  - hosts:
+    - api.shunsuke-platform.io
+    secretName: shunsuke-platform-tls
+  rules:
+  - host: api.shunsuke-platform.io
+    http:
+      paths:
+      - path: /command
+        pathType: Prefix
+        backend:
+          service:
+            name: command-tower-service
+            port:
+              number: 8080
+      - path: /agents
+        pathType: Prefix
+        backend:
+          service:
+            name: agent-coordinator-service
+            port:
+              number: 8081
+      - path: /quality
+        pathType: Prefix
+        backend:
+          service:
+            name: quality-guardian-service
+            port:
+              number: 8082
+      - path: /docs
+        pathType: Prefix
+        backend:
+          service:
+            name: doc-synthesizer-service
+            port:
+              number: 8083
+      - path: /metrics
+        pathType: Prefix
+        backend:
+          service:
+            name: performance-monitor-service
+            port:
+              number: 8084
+
+---
+# HorizontalPodAutoscaler for Command Tower
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: command-tower-hpa
+  namespace: shunsuke-platform
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: command-tower
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 10
+        periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 15
+      - type: Pods
+        value: 4
+        periodSeconds: 15
+      selectPolicy: Max
+
+---
+# PodDisruptionBudget
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: command-tower-pdb
+  namespace: shunsuke-platform
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: command-tower
+
+---
+# NetworkPolicy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: shunsuke-platform-network-policy
+  namespace: shunsuke-platform
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: shunsuke-platform
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: shunsuke-platform
+  - to:
+    - namespaceSelector: {}
+    ports:
+    - protocol: TCP
+      port: 53  # DNS
+    - protocol: UDP
+      port: 53  # DNS
+    - protocol: TCP
+      port: 443  # HTTPS for external APIs

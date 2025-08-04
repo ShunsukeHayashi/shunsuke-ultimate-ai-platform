@@ -126,6 +126,38 @@ services:
     networks:
       - shunsuke-network
 
+  # Course Generator - AIコース生成サービス
+  course-generator:
+    build:
+      context: ../services/course-generator
+      dockerfile: Dockerfile
+    container_name: shunsuke-course-generator
+    environment:
+      - NODE_ENV=production
+      - PORT=3002
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - REDIS_URL=redis://redis:6379
+      - CORS_ORIGIN=http://localhost:3000,http://localhost:3001
+      - AUDIO_CACHE_DIR=/app/audio_cache
+      - EXPORT_DIR=/app/exports
+      - LOG_LEVEL=info
+    ports:
+      - "3002:3002"
+    depends_on:
+      - redis
+    volumes:
+      - course-audio-cache:/app/audio_cache
+      - course-exports:/app/exports
+      - ../logs/course-generator:/app/logs
+    restart: unless-stopped
+    networks:
+      - shunsuke-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3002/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   # Redis - キャッシュ・メッセージブローカー
   redis:
     image: redis:7-alpine
@@ -301,6 +333,8 @@ volumes:
   quality-data:
   doc-data:
   performance-data:
+  course-audio-cache:
+  course-exports:
   redis-data:
   postgres-data:
   prometheus-data:

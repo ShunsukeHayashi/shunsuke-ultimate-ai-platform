@@ -25,12 +25,19 @@
     "monorepo:health": "node scripts/monorepo-health-check.js",
     "changeset": "changeset",
     "version": "changeset version",
-    "release": "turbo run build && changeset publish"
+    "release": "turbo run build && changeset publish",
+    "setup": "node scripts/setup-claude-integration.js",
+    "validate": "turbo run lint typecheck test",
+    "deploy": "node deployment/scripts/deploy.sh",
+    "monitor:health": "node scripts/monorepo-health-check.js",
+    "quality:report": "turbo run test --coverage && node scripts/generate-quality-report.js",
+    "logs:tail": "tail -f logs/**/*.log",
+    "dev:course-generator": "npm run dev --workspace=@shunsuke/course-generator",
+    "build:course-generator": "npm run build --workspace=@shunsuke/course-generator",
+    "start:course-generator": "npm run start --workspace=@shunsuke/course-generator"
   },
   "devDependencies": {
     "@changesets/cli": "^2.27.1",
-    "@shunsuke/eslint-config": "workspace:*",
-    "@shunsuke/typescript-config": "workspace:*",
     "@types/node": "^20.10.0",
     "eslint": "^8.56.0",
     "prettier": "^3.2.0",

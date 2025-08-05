@@ -61,8 +61,22 @@ export const ErrorCodes = {
   
   // Auth errors
   AUTH_ERROR: 'AUTH_ERROR',
+  AUTHENTICATION_ERROR: 'AUTHENTICATION_ERROR',
+  AUTHORIZATION_ERROR: 'AUTHORIZATION_ERROR',
   UNAUTHORIZED: 'UNAUTHORIZED',
-  FORBIDDEN: 'FORBIDDEN'
+  FORBIDDEN: 'FORBIDDEN',
+  
+  // Not found
+  NOT_FOUND: 'NOT_FOUND',
+  
+  // Cache errors
+  CACHE_ERROR: 'CACHE_ERROR',
+  
+  // Service availability
+  SERVICE_UNAVAILABLE: 'SERVICE_UNAVAILABLE',
+  
+  // Database errors
+  DATABASE_ERROR: 'DATABASE_ERROR'
 } as const;
 
 export type ErrorCode = typeof ErrorCodes[keyof typeof ErrorCodes];

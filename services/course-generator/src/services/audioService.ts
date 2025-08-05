@@ -10,6 +10,7 @@ import * as path from 'path';
 import crypto from 'crypto';
 import { AppError, ErrorCodes } from '../utils/errors';
 import { RateLimiter } from '../utils/rateLimiter';
+import { storageService, StorageFile } from './storageService';
 
 export interface VoiceOptions {
   voice?: string;
@@ -29,6 +30,8 @@ export interface GeneratedAudio {
   id: string;
   text: string;
   audioPath: string;
+  audioUrl?: string;
+  storageFile?: StorageFile;
   duration: number;
   fileSize: number;
   options: AudioGenerationOptions;
@@ -39,10 +42,12 @@ export class AudioService {
   private audioCache = new Map<string, GeneratedAudio>();
   private rateLimiter: RateLimiter;
   private cacheDirectory: string;
+  private useStorage: boolean;
   
   constructor(cacheDir: string = './audio_cache') {
     this.cacheDirectory = cacheDir;
     this.rateLimiter = new RateLimiter(20, 60000); // 20 requests per minute
+    this.useStorage = storageService.getStorageInfo().configured;
     this.initializeCache();
   }
 
@@ -136,16 +141,42 @@ export class AudioService {
     // In production, use @google-cloud/text-to-speech
     
     const audioId = this.generateAudioId(text, options);
-    const audioPath = path.join(this.cacheDirectory, `${audioId}.${options.format || 'mp3'}`);
+    const format = options.format || 'mp3';
+    const audioPath = path.join(this.cacheDirectory, `${audioId}.${format}`);
     
     // Simulate audio generation
     const mockAudioData = Buffer.from(`Mock audio for: ${text}`);
-    await fs.writeFile(audioPath, mockAudioData);
+    
+    let audioUrl: string | undefined;
+    let storageFile: StorageFile | undefined;
+    
+    if (this.useStorage) {
+      // Upload to storage service (CDN)
+      const storageKey = `audio/courses/${audioId}.${format}`;
+      storageFile = await storageService.uploadBuffer(mockAudioData, storageKey, {
+        contentType: `audio/${format}`,
+        metadata: {
+          text: text.substring(0, 100), // First 100 chars for reference
+          audioId,
+          provider: options.provider || 'google'
+        },
+        cacheControl: 'public, max-age=31536000' // 1 year cache
+      });
+      audioUrl = storageFile.url;
+      
+      // Still save locally for quick access
+      await fs.writeFile(audioPath, mockAudioData);
+    } else {
+      // Save only locally
+      await fs.writeFile(audioPath, mockAudioData);
+    }
     
     return {
       id: audioId,
       text,
       audioPath,
+      audioUrl,
+      storageFile,
       duration: Math.ceil(text.length / 150) * 60, // Rough estimate: 150 chars/min
       fileSize: mockAudioData.length,
       options,
@@ -211,12 +242,20 @@ export class AudioService {
       const metadataStr = await fs.readFile(metadataPath, 'utf-8');
       const metadata = JSON.parse(metadataStr);
       
-      // Check if audio file exists
-      await fs.access(metadata.audioPath);
+      // Check if audio file exists locally
+      try {
+        await fs.access(metadata.audioPath);
+      } catch {
+        // If local file doesn't exist but we have storage URL, that's OK
+        if (!metadata.audioUrl) {
+          return null;
+        }
+      }
       
       return {
         ...metadata,
-        createdAt: new Date(metadata.createdAt)
+        createdAt: new Date(metadata.createdAt),
+        storageFile: metadata.storageFile
       };
     } catch {
       return null;
@@ -312,6 +351,28 @@ export class AudioService {
     } catch (error) {
       console.error('Failed to clear audio cache:', error);
     }
+  }
+  
+  /**
+   * Get audio URL (CDN if available, local otherwise)
+   */
+  async getAudioUrl(audioId: string): Promise<string | null> {
+    const cached = this.audioCache.get(audioId);
+    if (cached?.audioUrl) {
+      return cached.audioUrl;
+    }
+    
+    const loaded = await this.loadFromCache(audioId);
+    if (loaded?.audioUrl) {
+      return loaded.audioUrl;
+    }
+    
+    // Return local file URL as fallback
+    if (loaded?.audioPath) {
+      return `/api/audio/${audioId}`;
+    }
+    
+    return null;
   }
 
   /**

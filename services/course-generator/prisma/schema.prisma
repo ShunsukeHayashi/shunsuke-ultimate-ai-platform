@@ -1,0 +1,393 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== User Management ====================
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  name          String
+  passwordHash  String
+  role          UserRole  @default(USER)
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  lastLoginAt   DateTime?
+  
+  // Relations
+  courses       Course[]
+  refreshTokens RefreshToken[]
+  enrollments   CourseEnrollment[]
+  activities    LearningActivity[]
+  promptTemplates PromptTemplate[]
+  
+  @@index([email])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  
+  @@index([userId])
+  @@index([token])
+}
+
+// ==================== Course Management ====================
+
+enum CourseStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+model Course {
+  id          String       @id @default(uuid())
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Metadata
+  title       String
+  description String
+  field       String       // specialty_field
+  level       String?      // difficulty_level
+  audience    String?      // target_audience
+  language    String       @default("ja")
+  status      CourseStatus @default(DRAFT)
+  
+  // Instructor details
+  instructorName        String?
+  instructorPersona     String?
+  instructorTone        String?
+  
+  // Content
+  modules     Json         // Full course structure as JSON
+  summary     String?
+  
+  // Stats
+  totalModules Int        @default(0)
+  totalLessons Int        @default(0)
+  estimatedDuration Int?  // in minutes
+  
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  publishedAt DateTime?
+  
+  // Relations
+  scripts     Script[]
+  audioFiles  AudioFile[]
+  exports     Export[]
+  shares      CourseShare[]
+  enrollments CourseEnrollment[]
+  activities  LearningActivity[]
+  
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// ==================== Course Content ====================
+
+model Script {
+  id         String   @id @default(uuid())
+  courseId   String
+  course     Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  
+  lessonKey  String   // e.g., "module_0_section_0_lesson_0"
+  content    String   @db.Text
+  
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  @@unique([courseId, lessonKey])
+  @@index([courseId])
+}
+
+model AudioFile {
+  id         String   @id @default(uuid())
+  courseId   String
+  course     Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  
+  lessonKey  String   // e.g., "module_0_section_0_lesson_0"
+  filePath   String?  // Local file path
+  fileData   Bytes?   // Binary data
+  format     String   @default("mp3")
+  duration   Int?     // in seconds
+  voice      String?  // Voice ID/name used
+  
+  createdAt  DateTime @default(now())
+  
+  @@unique([courseId, lessonKey])
+  @@index([courseId])
+}
+
+// ==================== Export Management ====================
+
+enum ExportFormat {
+  JSON
+  MARKDOWN
+  HTML
+  PDF
+  SCORM
+  ZIP
+}
+
+model Export {
+  id         String       @id @default(uuid())
+  courseId   String
+  course     Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  
+  format     ExportFormat
+  filePath   String
+  fileSize   Int          // in bytes
+  
+  createdAt  DateTime     @default(now())
+  expiresAt  DateTime?    // For temporary download links
+  
+  @@index([courseId])
+  @@index([createdAt])
+}
+
+// ==================== Course Sharing ====================
+
+enum SharePermission {
+  VIEW_ONLY
+  VIEW_AND_EXPORT
+  FULL_ACCESS
+}
+
+model CourseShare {
+  id             String          @id @default(uuid())
+  courseId       String
+  course         Course          @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  
+  // Sharing details
+  shareToken     String          @unique @default(cuid())
+  permission     SharePermission @default(VIEW_ONLY)
+  
+  // Optional: Share with specific user
+  sharedWithEmail String?
+  sharedWithUserId String?
+  
+  // Share metadata
+  sharedBy       String          // userId of the owner
+  description    String?         // Optional description/note
+  
+  // Access control
+  isActive       Boolean         @default(true)
+  expiresAt      DateTime?       // Optional expiration
+  maxViews       Int?            // Optional view limit
+  currentViews   Int             @default(0)
+  password       String?         // Optional password protection
+  
+  // Timestamps
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  lastAccessedAt DateTime?
+  
+  // Relations
+  accessLogs     ShareAccessLog[]
+  
+  @@index([courseId])
+  @@index([shareToken])
+  @@index([sharedWithEmail])
+  @@index([isActive, expiresAt])
+}
+
+model ShareAccessLog {
+  id           String      @id @default(uuid())
+  shareId      String
+  share        CourseShare @relation(fields: [shareId], references: [id], onDelete: Cascade)
+  
+  // Access details
+  accessedBy   String?     // IP address or user identifier
+  userAgent    String?
+  action       String      // view, export, etc.
+  
+  createdAt    DateTime    @default(now())
+  
+  @@index([shareId])
+  @@index([createdAt])
+}
+
+// ==================== Learning Progress ====================
+
+enum ProgressStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+model CourseEnrollment {
+  id          String         @id @default(uuid())
+  userId      String
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId    String
+  course      Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  
+  // Enrollment details
+  enrolledAt  DateTime       @default(now())
+  startedAt   DateTime?      // When user first accessed the course
+  completedAt DateTime?      // When user completed the entire course
+  lastAccessedAt DateTime?
+  
+  // Progress tracking
+  status      ProgressStatus @default(NOT_STARTED)
+  progressPercentage Float   @default(0) // 0-100
+  totalTimeSpent Int        @default(0) // in seconds
+  
+  // Relations
+  lessonProgress LessonProgress[]
+  
+  @@unique([userId, courseId])
+  @@index([userId])
+  @@index([courseId])
+  @@index([status])
+}
+
+model LessonProgress {
+  id             String           @id @default(uuid())
+  enrollmentId   String
+  enrollment     CourseEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  
+  // Lesson identification
+  moduleIndex    Int
+  sectionIndex   Int
+  lessonIndex    Int
+  lessonKey      String           // e.g., "module_0_section_0_lesson_0"
+  
+  // Progress tracking
+  status         ProgressStatus   @default(NOT_STARTED)
+  startedAt      DateTime?
+  completedAt    DateTime?
+  lastAccessedAt DateTime?
+  
+  // Time tracking
+  timeSpent      Int             @default(0) // in seconds
+  viewCount      Int             @default(0) // Number of times accessed
+  
+  // Additional data
+  notes          String?         @db.Text // User's notes for this lesson
+  bookmarked     Boolean         @default(false)
+  
+  @@unique([enrollmentId, lessonKey])
+  @@index([enrollmentId])
+  @@index([status])
+}
+
+model LearningActivity {
+  id           String           @id @default(uuid())
+  userId       String
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId     String
+  course       Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  
+  // Activity details
+  activityType String           // started_course, completed_lesson, completed_module, completed_course
+  lessonKey    String?          // For lesson-specific activities
+  metadata     Json?            // Additional activity data
+  
+  createdAt    DateTime         @default(now())
+  
+  @@index([userId])
+  @@index([courseId])
+  @@index([activityType])
+  @@index([createdAt])
+}
+
+// ==================== AI Prompt Templates ====================
+
+enum PromptCategory {
+  COURSE_GENERATION
+  MODULE_GENERATION
+  LESSON_GENERATION
+  SCRIPT_GENERATION
+  SUMMARY_GENERATION
+  CUSTOM
+}
+
+model PromptTemplate {
+  id          String         @id @default(uuid())
+  userId      String?        // null for system templates
+  user        User?          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Template details
+  name        String
+  description String?
+  category    PromptCategory
+  
+  // Template content
+  template    String         @db.Text // Template with {{variables}}
+  variables   Json           // Array of variable definitions
+  
+  // Settings
+  isPublic    Boolean        @default(false) // Available to all users
+  isDefault   Boolean        @default(false) // Used as default for category
+  
+  // Metadata
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  
+  // Relations
+  usageHistory PromptUsage[]
+  
+  @@index([userId])
+  @@index([category])
+  @@index([isPublic])
+  @@index([isDefault])
+}
+
+model PromptUsage {
+  id            String         @id @default(uuid())
+  templateId    String
+  template      PromptTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  userId        String
+  courseId      String?
+  
+  // Usage details
+  variables     Json           // Variable values used
+  prompt        String         @db.Text // Generated prompt
+  response      String?        @db.Text // AI response (optional)
+  
+  // Performance metrics
+  tokensUsed    Int?
+  responseTime  Int?           // in milliseconds
+  success       Boolean        @default(true)
+  
+  createdAt     DateTime       @default(now())
+  
+  @@index([templateId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// ==================== System Tables ====================
+
+model SystemLog {
+  id        String   @id @default(uuid())
+  level     String   // info, warning, error
+  message   String
+  metadata  Json?
+  createdAt DateTime @default(now())
+  
+  @@index([level])
+  @@index([createdAt])
+}

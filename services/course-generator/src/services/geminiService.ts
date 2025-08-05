@@ -7,6 +7,7 @@ import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
 import type { CourseMetadata, Lesson, Module, GenerationOptions } from '../types';
 import { AppError } from '../utils/errors';
 import { RateLimiter } from '../utils/rateLimiter';
+import { promptTemplateService } from './promptTemplateService';
 
 export class GeminiService {
   private genAI: GoogleGenerativeAI;
@@ -20,7 +21,7 @@ export class GeminiService {
     
     this.genAI = new GoogleGenerativeAI(apiKey);
     this.model = this.genAI.getGenerativeModel({ 
-      model: 'gemini-1.5-pro-latest',
+      model: 'gemini-1.5-pro',
       generationConfig: {
         temperature: 0.7,
         topK: 40,
@@ -43,7 +44,7 @@ export class GeminiService {
   ): Promise<Module[]> {
     await this.rateLimiter.acquire();
     
-    const prompt = this.buildCourseStructurePrompt(content, metadata, options);
+    const prompt = await this.buildCourseStructurePrompt(content, metadata, options);
     
     try {
       const result = await this.model.generateContent(prompt);
@@ -53,7 +54,7 @@ export class GeminiService {
       return this.parseCourseStructure(text);
     } catch (error) {
       throw new AppError(
-        `Failed to generate course structure: ${error.message}`,
+        `Failed to generate course structure: ${error instanceof Error ? error.message : 'Unknown error'}`,
         'AI_GENERATION_ERROR',
         error
       );
@@ -72,7 +73,7 @@ export class GeminiService {
   ): Promise<string> {
     await this.rateLimiter.acquire();
     
-    const prompt = this.buildLessonScriptPrompt(
+    const prompt = await this.buildLessonScriptPrompt(
       lesson,
       metadata,
       moduleContext,
@@ -86,7 +87,7 @@ export class GeminiService {
       return response.text().trim();
     } catch (error) {
       throw new AppError(
-        `Failed to generate lesson script: ${error.message}`,
+        `Failed to generate lesson script: ${error instanceof Error ? error.message : 'Unknown error'}`,
         'AI_GENERATION_ERROR',
         error
       );
@@ -110,19 +111,37 @@ export class GeminiService {
       return response.text().trim();
     } catch (error) {
       throw new AppError(
-        `Failed to generate course summary: ${error.message}`,
+        `Failed to generate course summary: ${error instanceof Error ? error.message : 'Unknown error'}`,
         'AI_GENERATION_ERROR',
         error
       );
     }
   }
 
-  private buildCourseStructurePrompt(
+  private async buildCourseStructurePrompt(
     content: string,
     metadata: Partial<CourseMetadata>,
     options?: GenerationOptions
-  ): string {
-    const language = options?.language || 'ja';
+  ): Promise<string> {
+    // カスタムプロンプトテンプレートを使用する場合
+    if (options?.promptTemplateId && options?.promptVariables) {
+      try {
+        const prompt = await promptTemplateService.generatePrompt({
+          templateId: options.promptTemplateId,
+          userId: 'system', // システムユーザーとして使用
+          variables: {
+            ...options.promptVariables,
+            content,
+            ...metadata,
+          },
+        });
+        return prompt;
+      } catch (error) {
+        console.error('Failed to generate prompt from template:', error);
+        // エラーの場合はデフォルトプロンプトを使用
+      }
+    }
+    
     const customPrompt = options?.customPrompt || '';
     
     return `
@@ -171,13 +190,33 @@ ${customPrompt}
 }`;
   }
 
-  private buildLessonScriptPrompt(
+  private async buildLessonScriptPrompt(
     lesson: Lesson,
     metadata: CourseMetadata,
     moduleContext: { name: string; description: string },
     sectionName: string,
     options?: GenerationOptions
-  ): string {
+  ): Promise<string> {
+    // カスタムプロンプトテンプレートを使用する場合
+    if (options?.promptTemplateId && options?.promptVariables) {
+      try {
+        const prompt = await promptTemplateService.generatePrompt({
+          templateId: options.promptTemplateId,
+          userId: 'system',
+          variables: {
+            ...options.promptVariables,
+            lesson,
+            metadata,
+            moduleContext,
+            sectionName,
+          },
+        });
+        return prompt;
+      } catch (error) {
+        console.error('Failed to generate prompt from template:', error);
+      }
+    }
+    
     return `
 あなたは「${metadata.specialty_field}」の専門家で、${metadata.profession}として活動している「${metadata.avatar}」です。
 

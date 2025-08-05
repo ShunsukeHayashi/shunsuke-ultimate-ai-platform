@@ -10,6 +10,7 @@ import * as cheerio from 'cheerio';
 import { URL } from 'url';
 import { AppError, ErrorCodes } from '../utils/errors';
 import { RateLimiter } from '../utils/rateLimiter';
+import { cacheService, CacheKeys, CacheTTL } from './cacheService';
 
 export interface CrawlSettings {
   maxDepth?: number;
@@ -98,7 +99,15 @@ export class WebCrawlerService {
       throw new AppError('Invalid URL provided', ErrorCodes.INVALID_URL);
     }
 
-    // Check if already crawled
+    // Check cache first
+    const cacheKey = `${CacheKeys.WEB_CONTENT}${url}`;
+    const cached = await cacheService.get<CrawlResult>(cacheKey);
+    if (cached) {
+      console.log(`Cache hit for URL: ${url}`);
+      return cached;
+    }
+
+    // Check if already crawled in current session
     if (this.crawledUrls.has(url)) {
       throw new AppError(`URL already crawled: ${url}`, ErrorCodes.VALIDATION_ERROR);
     }
@@ -125,6 +134,9 @@ export class WebCrawlerService {
 
       const result = this.extractContent(url, response.data, response.headers['content-type']);
       this.crawledUrls.add(url);
+      
+      // Cache the result
+      await cacheService.set(cacheKey, result, { ttl: CacheTTL.LONG });
       
       return result;
     } catch (error) {

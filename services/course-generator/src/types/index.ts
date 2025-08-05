@@ -13,6 +13,12 @@ export interface CourseMetadata {
   target_audience?: string;
   difficulty_level?: 'beginner' | 'intermediate' | 'advanced';
   estimated_duration?: string;
+  language?: string;
+  instructor?: {
+    name?: string;
+    persona?: string;
+    tone?: string;
+  };
 }
 
 export interface Lesson {
@@ -43,6 +49,8 @@ export interface Module {
   sections: Section[];
 }
 
+export type CourseModule = Module;
+
 export interface Course {
   metadata: CourseMetadata;
   modules: Module[];
@@ -59,6 +67,8 @@ export interface GenerationOptions {
   exportFormat?: 'zip' | 'pdf' | 'scorm' | 'json';
   language?: string;
   customPrompt?: string;
+  promptTemplateId?: string;
+  promptVariables?: Record<string, any>;
 }
 
 export interface GenerationProgress {
@@ -90,3 +100,16 @@ export interface HeadingStructure {
   content: string;
   children?: HeadingStructure[];
 }
+
+export type ExportFormat = 'json' | 'markdown' | 'html' | 'pdf' | 'scorm' | 'zip';
+
+export interface ExportOptions {
+  includeAudio?: boolean;
+  includeScripts?: boolean;
+  includeMetadata?: boolean;
+  format: ExportFormat;
+  outputPath?: string;
+}
+
+// Re-export auth types
+export * from './auth';

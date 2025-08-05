@@ -11,6 +11,7 @@ import archiver from 'archiver';
 import PDFDocument from 'pdfkit';
 import { Course, Module, Section, Lesson } from '../types';
 import { AppError, ErrorCodes } from '../utils/errors';
+import { storageService, StorageFile } from './storageService';
 
 export interface ExportOptions {
   includeAudio?: boolean;
@@ -23,6 +24,8 @@ export interface ExportOptions {
 export interface ExportResult {
   success: boolean;
   filePath: string;
+  fileUrl?: string;
+  storageFile?: StorageFile;
   format: string;
   fileSize: number;
   exportedAt: Date;
@@ -30,9 +33,13 @@ export interface ExportResult {
 
 export class ExportService {
   private outputDirectory: string;
+  private useStorage: boolean;
+  private uploadThreshold: number; // Size in bytes to trigger CDN upload
 
   constructor(outputDir: string = './exports') {
     this.outputDirectory = outputDir;
+    this.useStorage = storageService.getStorageInfo().configured;
+    this.uploadThreshold = 5 * 1024 * 1024; // 5MB threshold for CDN upload
     this.initializeOutputDirectory();
   }
 
@@ -88,10 +95,33 @@ export class ExportService {
       }
 
       const stats = await fs.stat(filePath);
+      
+      // Upload to storage if configured and file is large enough
+      let fileUrl: string | undefined;
+      let storageFile: StorageFile | undefined;
+      
+      if (this.useStorage && stats.size > this.uploadThreshold) {
+        const storageKey = `exports/courses/${baseFileName}.${options.format}`;
+        const contentType = this.getContentType(options.format);
+        
+        storageFile = await storageService.upload(filePath, storageKey, {
+          contentType,
+          metadata: {
+            courseName: course.metadata.course_title,
+            format: options.format,
+            exportedAt: new Date().toISOString()
+          },
+          expiresIn: 24 * 60 * 60 * 7 // 7 days for exports
+        });
+        
+        fileUrl = storageFile.url;
+      }
 
       return {
         success: true,
         filePath,
+        fileUrl,
+        storageFile,
         format: options.format,
         fileSize: stats.size,
         exportedAt: new Date()
@@ -448,5 +478,21 @@ ${course.modules.map((m, i) => `${i + 1}. ${m.module_name}`).join('\n')}
     };
     
     return text.replace(/[&<>"']/g, m => map[m]);
+  }
+
+  /**
+   * Get content type for format
+   */
+  private getContentType(format: string): string {
+    const contentTypes: Record<string, string> = {
+      'json': 'application/json',
+      'markdown': 'text/markdown',
+      'html': 'text/html',
+      'pdf': 'application/pdf',
+      'scorm': 'application/zip',
+      'zip': 'application/zip'
+    };
+    
+    return contentTypes[format] || 'application/octet-stream';
   }
 }

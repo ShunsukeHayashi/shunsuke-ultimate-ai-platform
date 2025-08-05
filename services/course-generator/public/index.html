@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Course Generator - Ultimate AI Platform</title>
+    <link rel="stylesheet" href="assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <h1>🎓 Course Generator</h1>
+                <span>Ultimate AI Platform</span>
+            </div>
+            <div class="nav-menu" id="navMenu">
+                <a href="#home" class="nav-link active">ホーム</a>
+                <a href="#courses" class="nav-link">コース</a>
+                <a href="#templates" class="nav-link">テンプレート</a>
+                <div class="nav-auth" id="navAuth">
+                    <button class="btn btn-primary" onclick="showLogin()">ログイン</button>
+                    <button class="btn btn-secondary" onclick="showRegister()">新規登録</button>
+                </div>
+                <div class="nav-user" id="navUser" style="display: none;">
+                    <span class="user-name" id="userName"></span>
+                    <button class="btn btn-outline" onclick="logout()">ログアウト</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero" id="home">
+        <div class="hero-container">
+            <div class="hero-content">
+                <h2>AI搭載のコース生成プラットフォーム</h2>
+                <p>Google Gemini AIを活用して、高品質な学習コンテンツを自動生成します。<br>
+                ウェブサイトやテキストから包括的なコースを作成し、音声付きレッスンを提供します。</p>
+                <div class="hero-buttons">
+                    <button class="btn btn-primary btn-large" onclick="showCourseGenerator()">
+                        🚀 コース生成を開始
+                    </button>
+                    <button class="btn btn-outline btn-large" onclick="scrollToFeatures()">
+                        📋 機能一覧
+                    </button>
+                </div>
+            </div>
+            <div class="hero-image">
+                <div class="feature-card">
+                    <div class="feature-icon">🤖</div>
+                    <h3>AI生成</h3>
+                    <p>Gemini AIによる高度なコンテンツ生成</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="features" id="features">
+        <div class="container">
+            <h2>主な機能</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">🌐</div>
+                    <h3>ウェブクローリング</h3>
+                    <p>ウェブサイトから自動的にコンテンツを抽出し、構造化された学習素材を作成</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🎙️</div>
+                    <h3>音声生成</h3>
+                    <p>レッスンのナレーション用テキスト読み上げ機能</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📦</div>
+                    <h3>多形式エクスポート</h3>
+                    <p>JSON、Markdown、HTML、PDF、SCORM、ZIPでエクスポート</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🔒</div>
+                    <h3>セキュリティ</h3>
+                    <p>Helmet、CORS、入力検証による安全なサービス</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Login Modal -->
+    <div class="modal" id="loginModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>ログイン</h3>
+                <button class="modal-close" onclick="closeModal('loginModal')">&times;</button>
+            </div>
+            <form id="loginForm" onsubmit="handleLogin(event)">
+                <div class="form-group">
+                    <label for="loginEmail">メールアドレス</label>
+                    <input type="email" id="loginEmail" name="email" required>
+                </div>
+                <div class="form-group">
+                    <label for="loginPassword">パスワード</label>
+                    <input type="password" id="loginPassword" name="password" required>
+                </div>
+                <div class="form-group">
+                    <button type="submit" class="btn btn-primary btn-full">ログイン</button>
+                </div>
+                <div class="form-footer">
+                    <p>アカウントをお持ちでない方は 
+                        <a href="#" onclick="showRegister(); closeModal('loginModal');">新規登録</a>
+                    </p>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Register Modal -->
+    <div class="modal" id="registerModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>新規登録</h3>
+                <button class="modal-close" onclick="closeModal('registerModal')">&times;</button>
+            </div>
+            <form id="registerForm" onsubmit="handleRegister(event)">
+                <div class="form-group">
+                    <label for="registerName">お名前</label>
+                    <input type="text" id="registerName" name="name" required>
+                </div>
+                <div class="form-group">
+                    <label for="registerEmail">メールアドレス</label>
+                    <input type="email" id="registerEmail" name="email" required>
+                </div>
+                <div class="form-group">
+                    <label for="registerPassword">パスワード</label>
+                    <input type="password" id="registerPassword" name="password" required minlength="6">
+                </div>
+                <div class="form-group">
+                    <label for="registerConfirmPassword">パスワード確認</label>
+                    <input type="password" id="registerConfirmPassword" name="confirmPassword" required>
+                </div>
+                <div class="form-group">
+                    <button type="submit" class="btn btn-primary btn-full">新規登録</button>
+                </div>
+                <div class="form-footer">
+                    <p>既にアカウントをお持ちの方は 
+                        <a href="#" onclick="showLogin(); closeModal('registerModal');">ログイン</a>
+                    </p>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Course Generator Modal -->
+    <div class="modal modal-large" id="courseGeneratorModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>🎓 コース生成ウィザード</h3>
+                <button class="modal-close" onclick="closeModal('courseGeneratorModal')">&times;</button>
+            </div>
+            <div class="wizard-container">
+                <!-- Step 1: Source Input -->
+                <div class="wizard-step active" id="step1">
+                    <h4>ステップ1: コンテンツソースの選択</h4>
+                    <div class="source-selector">
+                        <div class="source-option" onclick="selectSourceType('url')">
+                            <div class="source-icon">🌐</div>
+                            <h5>URL</h5>
+                            <p>ウェブサイトからコンテンツを抽出</p>
+                        </div>
+                        <div class="source-option" onclick="selectSourceType('text')">
+                            <div class="source-icon">📝</div>
+                            <h5>テキスト</h5>
+                            <p>直接テキストを入力</p>
+                        </div>
+                    </div>
+                    
+                    <div class="source-input" id="urlInput" style="display: none;">
+                        <label for="sourceUrls">URL（複数可、改行区切り）</label>
+                        <textarea id="sourceUrls" rows="3" placeholder="https://example.com/tutorial&#10;https://example.com/guide"></textarea>
+                    </div>
+                    
+                    <div class="source-input" id="textInput" style="display: none;">
+                        <label for="sourceText">テキストコンテンツ</label>
+                        <textarea id="sourceText" rows="5" placeholder="ここにコース作成用のテキストを入力してください..."></textarea>
+                    </div>
+                    
+                    <button class="btn btn-primary" onclick="nextStep(2)">次へ</button>
+                </div>
+
+                <!-- Step 2: Course Metadata -->
+                <div class="wizard-step" id="step2">
+                    <h4>ステップ2: コース設定</h4>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="courseTitle">コースタイトル</label>
+                            <input type="text" id="courseTitle" placeholder="例: Advanced TypeScript">
+                        </div>
+                        <div class="form-group">
+                            <label for="courseDescription">コース説明</label>
+                            <textarea id="courseDescription" rows="3" placeholder="例: TypeScriptの高度な機能をマスターする"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="specialtyField">専門分野</label>
+                            <input type="text" id="specialtyField" placeholder="例: Web Development">
+                        </div>
+                        <div class="form-group">
+                            <label for="profession">対象職種</label>
+                            <input type="text" id="profession" placeholder="例: Software Engineer">
+                        </div>
+                        <div class="form-group">
+                            <label for="avatar">講師タイプ</label>
+                            <select id="avatar">
+                                <option value="Tech Instructor">技術講師</option>
+                                <option value="Business Coach">ビジネスコーチ</option>
+                                <option value="Academic Professor">学術教授</option>
+                                <option value="Industry Expert">業界専門家</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="toneOfVoice">トーン</label>
+                            <select id="toneOfVoice">
+                                <option value="Professional and friendly">プロフェッショナル & フレンドリー</option>
+                                <option value="Casual and approachable">カジュアル & 親しみやすい</option>
+                                <option value="Formal and academic">フォーマル & アカデミック</option>
+                                <option value="Enthusiastic and motivating">情熱的 & 動機づけ</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="wizard-buttons">
+                        <button class="btn btn-secondary" onclick="prevStep(1)">戻る</button>
+                        <button class="btn btn-primary" onclick="nextStep(3)">次へ</button>
+                    </div>
+                </div>
+
+                <!-- Step 3: Options -->
+                <div class="wizard-step" id="step3">
+                    <h4>ステップ3: 生成オプション</h4>
+                    <div class="options-grid">
+                        <div class="option-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="includeAudio" checked>
+                                <span class="checkmark"></span>
+                                音声生成を含める
+                            </label>
+                        </div>
+                        <div class="option-group">
+                            <label for="language">言語</label>
+                            <select id="language">
+                                <option value="ja">日本語</option>
+                                <option value="en">English</option>
+                            </select>
+                        </div>
+                        <div class="option-group">
+                            <label for="audioVoice">音声タイプ</label>
+                            <select id="audioVoice">
+                                <option value="ja-JP-Standard-A">日本語 女性 A</option>
+                                <option value="ja-JP-Standard-B">日本語 男性 B</option>
+                                <option value="ja-JP-Standard-C">日本語 男性 C</option>
+                                <option value="ja-JP-Standard-D">日本語 男性 D</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="wizard-buttons">
+                        <button class="btn btn-secondary" onclick="prevStep(2)">戻る</button>
+                        <button class="btn btn-primary" onclick="generateCourse()">🚀 コース生成開始</button>
+                    </div>
+                </div>
+
+                <!-- Step 4: Generation Progress -->
+                <div class="wizard-step" id="step4">
+                    <h4>ステップ4: 生成中...</h4>
+                    <div class="progress-indicator">
+                        <div class="spinner"></div>
+                        <p id="progressText">コンテンツの解析を開始しています...</p>
+                    </div>
+                    <div class="progress-log" id="progressLog"></div>
+                </div>
+
+                <!-- Step 5: Results -->
+                <div class="wizard-step" id="step5">
+                    <h4>ステップ5: 生成完了</h4>
+                    <div class="results-container" id="resultsContainer">
+                        <!-- Generated course content will be displayed here -->
+                    </div>
+                    <div class="wizard-buttons">
+                        <button class="btn btn-secondary" onclick="resetWizard()">新しいコースを作成</button>
+                        <button class="btn btn-primary" onclick="exportCourse()">📦 エクスポート</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="assets/js/app.js"></script>
+</body>
+</html>

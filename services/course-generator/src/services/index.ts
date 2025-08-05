@@ -8,3 +8,5 @@ export { ContextAgent } from './contextAgent';
 export { WebCrawlerService } from './webCrawlerService';
 export { AudioService } from './audioService';
 export { ExportService } from './exportService';
+export { AuthService } from './authService';
+export { DatabaseService, databaseService } from './databaseService';
